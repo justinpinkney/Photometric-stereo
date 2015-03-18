@@ -90,10 +90,50 @@ class PhotometricCamera():
         pass
 
     def capture(self):
-        pass
+
+        print('Capturing photos')
+        # initialise the camera
+        cam = cv2.VideoCapture(0)
+        # make sure the camera is getting frames
+        ret, _ = cam.read()
+        timeDelay = 1
+
+        # Set up the opc client and variables
+        client = opc.Client('localhost:7890')
+        numLEDs = 3 # Number of illumination LEDs
+        nFlush = 5 # Number of frames to capture to flush the camera
+        black = (0,0,0)
+        white = (255,255,255)
+
+        # Clear existing images
+        ims = []
+
+        client.put_pixels([white, black, black])
+        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+
+        client.put_pixels([black, white, black])
+        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+
+        client.put_pixels([black, black, white])
+        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+
+        # Reset the LEDs
+        client.put_pixels([black, black, black])
+
+    def grabFrame(self, nFlush, timeDelay):
+        # flush the camera
+        for f in range(nFlush):
+            ret, _ = cam.read()
+
+        time.sleep(timeDelay)
+        ret, camIm = cam.read()
+        time.sleep(timeDelay)
+
+        return camIm
 
     def reconstruct(self):
         pass
+
 
     def loadImages(self, folderName):
         """ Load images from a folder, expected file names are im1, im2, im3 (jpg) """
@@ -119,12 +159,12 @@ class PhotometricCamera():
     ############ UTILITY FUNCTIONS ################
     def printCalibration(self):
         if self.haveCalibration:
-            print('~~~~~~ Current Calibration ~~~~~~')
+            print('###### Current Calibration ######')
             print('Lighting vectors:')
             print(self.ls)
             print('Intensity constants:')
             print(self.As)
-            print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+            print('#################################')
 
         else:
             print('No calibration loaded')
@@ -134,3 +174,5 @@ if __name__ == '__main__':
     cam = PhotometricCamera()
     cam.loadImages('./flat')
     cam.calibrate()
+    cam.capture()
+    cam.reconstruct()
