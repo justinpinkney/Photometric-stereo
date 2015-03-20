@@ -51,6 +51,7 @@ class PhotometricCamera():
             # Delete existing calibration data
             self.ls = []
             self.As = []
+            self.temp = []
 
             for im in self.ims:
                 imWidth = im.shape[1]
@@ -58,9 +59,10 @@ class PhotometricCamera():
 
                 # Convert the image to grayscale
                 imGray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+                imGray = np.float32(imGray)
 
                 # Find the co-ords of maximum brightness
-                blurSize = 10
+                blurSize = 20
                 imBlur = cv2.blur(imGray, (blurSize, blurSize))
                 maxInd = np.argmax(imBlur)
                 (yMax, xMax) = np.unravel_index(maxInd, imBlur.shape)
@@ -70,12 +72,14 @@ class PhotometricCamera():
                 x -= xMax
                 y -= yMax
 
-                r2 = x ** 2 + y ** 2
+                r2 = x ** 2.0 + y ** 2.0
                 Ipow = np.power(imGray, -2/3.0)
-                p = np.polyfit(Ipow.flatten(), r2.flatten(), 1)
+                #self.temp.append([Ipow.flatten(), r2.flatten()])
+                p = np.polyfit(Ipow.flatten()[:100000], r2.flatten()[:100000], 1, full=False)
                 print('Fit complete:' + np.array_str(p))
+                #print(np.mean(residuals))
 
-                lz = np.sqrt(np.abs(p[1]))
+                lz = np.sqrt(-p[1])
                 A = p[0] ** (2/3.0)
 
                 self.As.append( A )
@@ -107,16 +111,16 @@ class PhotometricCamera():
         white = (255,255,255)
 
         # Clear existing images
-        ims = []
+        self.ims = []
 
         client.put_pixels([white, black, black])
-        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+        self.ims.append( self.grabFrame(cam, nFlush, timeDelay) )
 
         client.put_pixels([black, white, black])
-        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+        self.ims.append( self.grabFrame(cam, nFlush, timeDelay) )
 
         client.put_pixels([black, black, white])
-        ims.append( self.grabFrame(cam, nFlush, timeDelay) )
+        self.ims.append( self.grabFrame(cam, nFlush, timeDelay) )
 
         # Reset the LEDs
         client.put_pixels([black, black, black])
@@ -140,13 +144,9 @@ class PhotometricCamera():
         iChannel = 0
 
         # Convert to linear space
-        for im in self.ims:
-            # TODO: Check if this does what I expect
-            im = s2lin(np.array(im[:,:,iChannel],np.float)/255)
-        
-        im1 = self.ims[0]
-        im2 = self.ims[1]
-        im3 = self.ims[2]
+        im1 = s2lin(np.array(self.ims[0][:,:,iChannel],np.float)/255)
+        im2 = s2lin(np.array(self.ims[1][:,:,iChannel],np.float)/255)
+        im3 = s2lin(np.array(self.ims[2][:,:,iChannel],np.float)/255)
 
         imWidth = np.float(self.ims[0].shape[1])
         imHeight = np.float(self.ims[0].shape[0])
@@ -187,10 +187,11 @@ class PhotometricCamera():
 
         magL = ln.norm(L, axis=2)
 
-        I = np.dstack((im1[:,:,iChannel], im2[:,:,iChannel], im3[:,:,iChannel]))
+        I = np.dstack((im1, im2, im3))
         I = np.reshape(I,(-1,3))
 
         scaledI = np.multiply(I,magL ** 3)
+        scaledI = np.divide(scaledI, np.array(self.As))
 
         del I
 
@@ -290,7 +291,8 @@ if __name__ == '__main__':
 
     cam = PhotometricCamera()
     cam.loadImages('./flat')
+    #cam.capture()
     cam.calibrate()
-    cam.capture()
+    #cam.capture()
     cam.reconstruct()
     cam.plotReconstruction()
