@@ -35,6 +35,7 @@ class PhotometricCamera():
         ############# State variables ##############
         self.haveImages = False
         self.haveCalibration = False
+        self.haveReconstruction = False
 
         ################## Others ##################
         np.set_printoptions(precision=3)
@@ -210,6 +211,7 @@ class PhotometricCamera():
         self.p = np.reshape(p, (imHeight, imWidth))
         self.q = np.reshape(q, (imHeight, imWidth))
         self.r = np.reshape(r, (imHeight, imWidth))
+        self.haveReconstruction = True
 
 
     def loadImages(self, folderName):
@@ -233,6 +235,44 @@ class PhotometricCamera():
     def saveImages(self):
         pass
 
+    def plotReconstruction(self):
+
+        if self.haveReconstruction:
+            plt.figure()
+            implot = plt.imshow(self.p)
+            implot.set_clim(-1,1)
+            plt.title('X gradient')
+            plt.colorbar()
+            plt.show()
+
+            plt.figure()
+            implot = plt.imshow(self.q)
+            implot.set_clim(-1,1)
+            plt.title('Y gradient ')
+            plt.colorbar()
+            plt.show()
+
+            plt.figure()
+            implot = plt.imshow(self.r)
+            plt.title('Albedo')
+            plt.colorbar()
+            plt.show()
+
+            plt.figure()
+            n3 = np.ones(self.p.shape)
+            nCalc = np.dstack([self.p, self.q, n3])
+            nTemp = nCalc.copy()
+            nCalc[:,:,0] /= ln.norm(nTemp, axis=2)
+            nCalc[:,:,1] /= ln.norm(nTemp, axis=2)
+            nCalc[:,:,2] /= ln.norm(nTemp, axis=2)
+            gradIm = np.dstack([127 + 127*nCalc[:,:,0],127 + 127*nCalc[:,:,1],127+127*nCalc[:,:,2]])
+            gradIm = np.array(gradIm, np.uint8)
+            plt.imshow(gradIm)
+            plt.show()
+
+        else:
+            print('No reconstruction present')
+
     ############ UTILITY FUNCTIONS ################
     def printCalibration(self):
         if self.haveCalibration:
@@ -253,3 +293,4 @@ if __name__ == '__main__':
     cam.calibrate()
     cam.capture()
     cam.reconstruct()
+    cam.plotReconstruction()
