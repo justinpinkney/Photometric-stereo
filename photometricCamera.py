@@ -6,10 +6,15 @@ import time
 import subprocess
 import opc
 import os
+from scipy.optimize import curve_fit
 
 def normalise(a):
     a /= ln.norm(a)
     return a
+    
+def intensityFunction(r2, a, b):
+    denom = (b ** 2 + r2) ** (3/2.0)
+    return a/denom
 
 # sRGB conversion functions from http://excamera.com/sphinx/article-srgb.html
 
@@ -59,7 +64,7 @@ class PhotometricCamera():
 
                 # Convert the image to grayscale
                 imGray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-                imGray = np.float32(imGray)
+                imGray = np.float64(imGray)
 
                 # Find the co-ords of maximum brightness
                 blurSize = 20
@@ -72,18 +77,30 @@ class PhotometricCamera():
                 x -= xMax
                 y -= yMax
 
-                r2 = x ** 2.0 + y ** 2.0
-                Ipow = np.power(imGray, -2/3.0)
+                #r2 = x ** 2.0 + y ** 2.0
+                #Ipow = np.power(s2lin(imGray/255.0), -2/3.0)
                 #self.temp.append([Ipow.flatten(), r2.flatten()])
-                p = np.polyfit(Ipow.flatten()[:100000], r2.flatten()[:100000], 1, full=False)
-                print('Fit complete:' + np.array_str(p))
+                #p = np.polyfit(Ipow.flatten()[:100000], r2.flatten()[:100000], 1, full=False)
+                #print('Fit complete:' + np.array_str(p))
                 #print(np.mean(residuals))
 
-                lz = np.sqrt(-p[1])
-                A = p[0] ** (2/3.0)
+                #lz = np.sqrt(-p[1])
+                #A = p[0] ** (2/3.0)
 
-                self.As.append( A )
-                self.ls.append( np.array([xMax - imWidth/2.0, yMax - imHeight/2.0, lz]) )
+                #self.As.append( A )
+                #self.ls.append( np.array([xMax - imWidth/2.0, yMax - imHeight/2.0, lz]) )
+
+                r2 = (x ** 2.0 + y ** 2.0)
+                r2 = r2.flatten()
+                I = s2lin(np.float64(im[:,:,0])/255.0)
+                I = I.flatten()
+                self.temp.append([I, r2])
+                popt, pcov = curve_fit(intensityFunction, r2, I)
+                
+                print popt
+                
+                self.As.append( popt[0] )
+                self.ls.append( np.array([xMax - imWidth/2.0, yMax - imHeight/2.0, popt[1]]) )
 
             print('Calibration complete')
             self.haveCalibration = True
